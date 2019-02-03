@@ -12,6 +12,7 @@ pub enum Expression {
     MethodUndefinition(MethodUndefinition),
     Aliasing(AliasingVariants),
     SendMethod(SendMethodVariants),
+    Operation(OperationVariants),
     LogicalOperation(LogicalOperationVariants),
     Branching(BranchingVariants),
     TernaryBranching(TernaryBranching),
@@ -22,7 +23,6 @@ pub enum Expression {
     BEGINBlock(Vec<Expression>),
     ENDBlock(Vec<Expression>),
     FlipFlop(FlipFlopVariants),
-    MatchWithAssign(MatchWithAssign),
 }
 
 pub enum ValueVariants {
@@ -179,20 +179,25 @@ pub struct MultipleLeftHandSide(Vec<MultipleLeftHandSideElement>);
 
 pub struct MultipleRightHandSide(ArrayInterpolation);
 
+/// Assignment operator for binary operation
+/// e.g. `And` is &=
 pub enum BinaryOperator {
     Add,
     Sub,
     Or,
+    Xor,
     And,
     Multiply,
     Divide,
+    LeftShift,
+    RightShift,
 }
 
+/// Assignment operator for logical operation
+/// e.g. `And` id &&=
 pub enum LogicalOperator {
     Or,
     And,
-    LeftShift,
-    RightShift,
 }
 
 pub enum ClassDefinitionVariants {
@@ -348,12 +353,26 @@ pub enum ProcExpressionVariants {
     Stubby(ProcArgument, Vec<Expression>),
 }
 
+pub enum OperationVariants {
+    Paren(Vec<Expression>),
+    BinaryExpression {
+        operator: BinaryOperator,
+        lefthand: Expression,
+        righthand: Expression,
+    },
+    Not(Expression),
+}
+
 pub enum LogicalOperationVariants {
+    Equal(Expression, Expression),
     And(Expression, Expression),
+    LowerPrecedenceAnd(Expression, Expression),
     Or(Expression, Expression),
+    LowerPrecedenceOr(Expression, Expression),
     DoubleAmpersands(Expression, Expression),
     DoublePipes(Expression, Expression),
     Not(Expression),
+    Match(RegularExpressionMatch),
 }
 
 pub enum BranchingVariants {
@@ -468,7 +487,7 @@ pub struct FlipFlop {
     expressions: Vec<Expression>,
 } 
 
-pub struct MatchWithAssign {
+pub struct RegularExpressionMatch {
     regex: RegularExpression,
     expression: Expression,
 }
