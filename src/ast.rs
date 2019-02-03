@@ -21,6 +21,8 @@ pub enum Expression {
     ExceptionHandling(ExceptionHandlingVariants),
     BEGINBlock(Vec<Expression>),
     ENDBlock(Vec<Expression>),
+    FlipFlop(FlipFlopVariants),
+    MatchWithAssign(MatchWithAssign),
 }
 
 pub enum ValueVariants {
@@ -129,7 +131,7 @@ pub enum AccessVariants {
 pub struct Variable(String);
 
 pub enum GlobalVariable {
-    Regular(Variable),
+    Plain(Variable),
     NthReference(IntegerLiteral),
     Colon,
     Splat,
@@ -148,6 +150,9 @@ pub enum ConstantVariants {
     TopLevel(Constant),
     Scoped(Vec<Constant>),
     Unscoped(Constant),
+    File,
+    Line,
+    Encoding,
 }
 
 pub struct Constant(String);
@@ -398,3 +403,72 @@ pub struct WhenDefinitionVariants {
     iftrue: Expression,
 }
 
+pub enum LoopVariants {
+    PreCondition(LoopConditionVariants),
+    PostCondition(LooptConditionVariants),
+    ForIn {
+        assignee: MultipleLeftHandSideElement,
+        iterator: ArrayExpression,
+        expressions: Vec<Expression>,
+    }
+}
+
+pub enum LoopConditionVariants {
+    While(LoopStruct),
+    Until(LoopStruct),
+}
+
+pub struct LoopStruct {
+    condition: Expresssion,
+    expressions: Vec<InLoopExpression>,
+}
+
+pub enum InLoopExpression {
+    Plain(Expression),
+    Break(Option<Expression>),
+    Next(Option<Expression>),
+    Redo,
+}
+
+pub enum ExceptionHandlingVariants {
+    InlineRescue(Expression, Expression),
+    DefRescue(Vec<Expression>, RescueBodyVariants),
+    BeginRescue(Vec<Expression>, RescueBodyVariants),
+}
+
+pub enum RescueBodyVariants {
+    Rescue(Vec<RescueBody>, Option<RescueEnsureOrElse>),
+    Ensure(Vec<Expression>),
+}
+
+pub struct RescueBody {
+    exceptions: Vec<ConstantVariants>,
+    assignment: Option<AccessVariants>,
+    expressions: (Vec<Expression>, Option<Retry>),
+}
+
+pub enum RescueEnsureOrElse {
+    Ensure(Vec<Expression>),
+    Else(Vec<Expression>),
+}
+
+pub struct Retry;
+
+pub struct BEGINBlock(Vec<Expression>);
+pub struct ENDBlock(Vec<Expression>);
+
+pub enum FlipFlopVariants {
+    Inclusive(FlipFLop),
+    Exclusive(FlipFlop),
+}
+
+pub struct FlipFlop {
+    flip: Expression,
+    flop: Expression,
+    expressions: Vec<Expression>,
+} 
+
+pub struct MatchWithAssign {
+    regex: RegularExpression,
+    expression: Expression,
+}
