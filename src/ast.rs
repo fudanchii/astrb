@@ -1,7 +1,13 @@
+//! Abstract syntax tree representation for Ruby programming language.
+
+/// Represent ruby source code as a list of expressions.
 pub struct Root {
     expressions: Vec<Expression>,
 }
 
+/// Expression in ruby can be splitted into some more specific types.
+/// For example class definition is an expression. a single literal value
+/// is also an expression. Even an assignment is also an expression.
 pub enum Expression {
     Literal(ValueVariants),
     Access(AccessVariants),
@@ -25,6 +31,7 @@ pub enum Expression {
     FlipFlop(FlipFlopVariants),
 }
 
+/// Represent variants of literal value.
 pub enum ValueVariants {
     Singleton(SingletonVariants),
     Integer(IntegerLiteral),
@@ -41,56 +48,99 @@ pub enum ValueVariants {
     Range(RangeLiteral),
 }
 
+/// In ruby, true, false, and nil are categoried as singleton value.
 pub enum SingletonVariants {
     True,
     False,
     Nil,
 }
 
+/// Literal representation for signed integer.
 pub struct IntegerLiteral(i64);
+
+/// Literal representation for float.
 pub struct FloatLiteral(f64);
+
+/// Literal representation for rational number.
 pub struct RationalLiteral(f64);
+
+/// Literal representation for complex number.
 pub struct ComplexLiteral(f64);
 
 
-/// String literal without quotes
+/// String literal representation, without quotes.
+/// Quotes will be determined by each variants.
 pub enum StringLiteral {
     Static(String),
     WithInterpolation(Vec<Expressions>),
-};
+}
 
+
+/// Literal representation for regular expression 
 pub struct RegularExpression {
     expression: StringLiteral,
     option: Option<RegularExpressionFlag>,
 }
 
+/// Represent regular expression flag,
+/// I is case-insensitive
+/// M is multi-line
 pub enum RegularExpressionFlag {
     I,
     M,
 }
 
+/// Literal representation for array.
 pub enum ArrayLiteral {
+    /// Plain array is a list of expression.
     Plain(Vec<Expression>),
+
+    /// Splat can be either '*var' or '*[v1, v2]'
+    /// represent them as its own expression, see: ArrayExpression.
     Splat(ArrayExpression),
+
+    /// Array may be interpolated, that is an array can be constructed
+    /// as a literal which contains splat in its declaration,
+    /// in this case, we categorized this array literal as interpolated.
     WithInterpolation(Vec<ArrayInterpolation>),
 }
 
+/// Specific expression that returns array.
+/// It can be an array literal, or an access.
+/// See: AccessVariants.
 pub enum ArrayExpression {
-    Literal(ArrayLiteral),
-    Variable(Variable),
+    Literal(Box<ArrayLiteral>),
+    Access(AccessVariants),
 }
 
+/// Represent each element in interpolated array.
 pub enum ArrayInterpolation {
     Expression(Expression),
     Splat(ArrayExpression),
 }
 
+/// Literal representation for hash (map).
 pub enum HashLiteral {
+    /// Plain hash is a list of HashElement.
     Plain(Vec<HashElement>),
+
+    /// In hash, splat can be either '**var' or '**{ a: v1 }'
+    /// represent these as its own expression, see: HashExpression.
     Splat(HashExpression),
+
+    /// Hash may be interpolated if it's constructed as a literal which contains splat
+    /// in its declaration.
     WithInterpolation(Vec<HashInterpolation>),
 }
 
+/// Each element of a hash is either
+/// a pair:
+///     "key" => :value
+/// or
+/// a labeled value:
+///     key: :value
+///
+/// Each of this need to be represented separately.
 pub enum HashElement {
     Pair {
         key: Expression,
@@ -103,11 +153,15 @@ pub enum HashElement {
     },
 }
 
+/// A specific expression that returns hash.
+/// It can be an array literal, or an access.
+/// See: AccessVariants.
 pub enum HashExpression {
-    Literal(HashLiteral),
-    Variable(Variable),
+    Literal(Box<HashLiteral>),
+    Access(AccessVariants),
 }
 
+/// Represent each possible value for interpolated hash element
 pub enum HashInterpolation {
     Element(HashElement),
     Splat(HashExpression),
@@ -119,6 +173,8 @@ pub enum RangeLiteral {
     Exclusive(IntegerLiteral, Option<IntegerLiteral>),
 }
 
+/// Variant for access. Access is an invocation for variables.
+/// Including self, instance variables, global variables and even constants.
 pub enum AccessVariants {
     _Self,
     LocalVariable(Variable),
@@ -128,8 +184,10 @@ pub enum AccessVariants {
     Constant(ConstantVariants),
 }
 
+/// A variable only has its name, represented as string.
 pub struct Variable(String);
 
+/// global variable is prefixed by dollar '$'
 pub enum GlobalVariable {
     Plain(Variable),
     NthReference(IntegerLiteral),
@@ -146,77 +204,177 @@ pub enum GlobalVariable {
     AtSymbol,
 }
 
+/// Variants for constants.
 pub enum ConstantVariants {
+    /// Top level constant is '::A' in Ruby.
     TopLevel(Constant),
+
+    /// Constant can be scoped (namespaced) in which it represented as a list of its
+    /// namespaces, ended by the constant itself.
+    /// e.g.
+    ///     'ConstantVariants::Scoped(vec![Constant("A"), constant("B")])'
+    /// is equal to 'A::B' in Ruby.
     Scoped(Vec<Constant>),
+
+    /// Unscoped constants is all constants which accessed without its namespace,
+    /// or simply not namespaced.
     Unscoped(Constant),
+
+    /// Represents special constant '__FILE__' in Ruby.
     File,
+
+    /// Represents special constant '__LINE__' in Ruby.
     Line,
+
+    /// Represents special constant '__ENCODING__' in Ruby.
     Encoding,
 }
 
+/// Constant name representation.
 pub struct Constant(String);
 
+/// Variants of assignment expression.
 pub enum AssignmentVariants {
-    ToLocalVariable(Variable, Expression),
-    ToInstanceVariable(Variable, Expression),
-    ToClassVariable(Variable, Expression),
-    ToGlobalVariable(GlobalVariable, Expression),
-    ToConstant(ConstantVariants, Expression),
+    /// Assign to local variable.
+    ToLocalVariable(Variable, Box<Expression>),
+
+    /// Assign tot instance variable.
+    ToInstanceVariable(Variable, Box<Expression>),
+
+    /// Assign to class variable.
+    ToClassVariable(Variable, Box<Expression>),
+
+    /// Assign to global variable.
+    ToGlobalVariable(GlobalVariable, Box<Expression>),
+
+    /// Assign to constant.
+    ToConstant(ConstantVariants, Box<Expression>),
+
+    /// Assign to object attribute.
     ToAttribute(SendMethodAssignmentVariants),
+
+    /// Destructuring, multiple left hand assignment.
     MultipleAssignment(MultipleLeftHandSide, MultipleRightHandSide),
-    BinaryOperator(BinaryOperator, AccessVariants, Expression),
-    LogicalOperator(LogicalOperator, AccessVariants, Expression),
+
+    /// Assignment with binary operation.
+    BinaryOperator(BinaryOperator, AccessVariants, Box<Expression>),
+
+    /// Assignment with logical operation.
+    LogicalOperator(LogicalOperator, AccessVariants, Box<Expression>),
 }
 
+/// All possible form of multiple left hand side elements.
 pub enum MultipleLeftHandSideElement {
+    /// Plain access is variables/constants like symbols.
     PlainAccess(AccessVariants),
+
+    /// Attribute access, for assignment to instance attributes.
     AttributeAccess(AccessAttributeVariants),
+
+    /// Multiple left hand side can be nested.
     Nested(MultipleLeftHandSide),
 }
 
+/// Represent multiple left hand side in an assignment.
 pub struct MultipleLeftHandSide(Vec<MultipleLeftHandSideElement>);
 
+/// Represent right hand side expression in multiple left hand side assignment.
 pub struct MultipleRightHandSide(ArrayInterpolation);
 
 /// Assignment operator for binary operation
 /// e.g. `And` is &=
 pub enum BinaryOperator {
+    /// Add operator: `+`,
+    /// `+=` in assignment.
     Add,
+
+    /// Substract operator: `-`
+    /// `-=` in assignment.
     Sub,
+
+    /// Binary or operator: `|`
+    /// `|=` in assignment.
     Or,
+
+    /// Binary xor operator: `^`
+    /// `^=` in assignment.
     Xor,
+
+    /// Binary and operator: `&`
+    /// `&=` in assignment.
     And,
+
+    /// Multiplication operator: `*`
+    /// `*=` in assignment.
     Multiply,
+
+    /// Division operator: `/`
+    /// `/=` in assignment.
     Divide,
+
+    /// Modulus operator: `%`
+    /// `%=` in assignment.
+    Mod,
+
+    /// Shift bits to the left: `<<`
+    /// `<<=` in assignment.
     LeftShift,
+
+    /// Shift bits to the right: `>>`
+    /// `>>=` in assignment.
     RightShift,
 }
 
 /// Assignment operator for logical operation
-/// e.g. `And` id &&=
+/// e.g.
+///     `And` is &&=
+///     `Or` id ||=
 pub enum LogicalOperator {
     Or,
     And,
 }
 
+/// Variants for class definition.
 pub enum ClassDefinitionVariants {
+    /// Plain class definition
+    /// see: ClassDefinition.
     Class(ClassDefinition),
+
+    /// Singleton class definition
+    /// see: SingletonClassDefinition.
     Singleton(SingletonClassDefinition),
 }
 
+/// Represent class definition that is not a singleton (class << self)
 pub struct ClassDefinition {
+    /// Class has a name, and it's a constant.
     name: ConstantVariants,
+
+    /// Class may inherits another class,
+    /// which make the other class its parent.
     parent: Option<ConstantVariants>,
+
+    /// Class definition may contains method declarations and
+    /// whatnot, list them as expressions.
     expressions: Vec<Expression>,
 }
 
+/// Singleton class definition
+/// i.e. `class << self`
+/// This class definition doesn't have any name,
+/// so it only represented by its list of expressions.
 pub struct SingletonClassDefinition {
     expressions: Vec<Expression>,
 }
 
+/// Represent module definition, it's similar to class
+/// but has not inheritance.
 pub struct ModuleDefinition {
+    /// Module name, a constant.
     name: ConstantVariants,
+
+    /// Similar as class body, module
+    /// definition may have list of expressions.
     expressions: Vec<Expression>,
 }
 
@@ -337,7 +495,7 @@ pub enum ArgumentVariants {
     KeywordSplat(HashExpression),
 }
 
-pub struct BlockArgument {
+pub enum BlockArgument {
     Pass(ProcAsArgumentVariants),
     BeginBlock(ProcArgument, Vec<Expression>),
 }
